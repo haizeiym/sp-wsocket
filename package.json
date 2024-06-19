@@ -13,6 +13,10 @@
     "Socket",
     "ws"
   ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/haizeiym/sp-wsocket.git"
+  },
   "author": "wnls",
   "license": "ISC"
 }
