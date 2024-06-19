@@ -1,20 +1,22 @@
 const socket: { [key: number]: baseWs } = Object.create(null);
 
 type socketData = (string | ArrayBufferLike | Blob | ArrayBufferView);
+type fna = ((event?: any) => void) | undefined | null;
+type fnd = (() => socketData) | undefined | null;
 
 export interface socketFn {
-    onConnected(event?: any): void;                             //连接回调
-    onMessage(event: any): void;                                //消息回调
-    onClosed(event?: any): void;                                //关闭回调
+    onConnected: fna;                                    //连接回调
+    onMessage: fna;                                      //消息回调
+    onClosed: fna;                                       //关闭回调
 
-    onError?(event?: any): void;                                //错误回调
-    errorSendFn?(readyState?: number): void;                    //网络状态错误发送消息时回调
-    msgTimeOutFn?(): void;                                      //接受消息超时回调
-    heartTimeOutFn?(): void;                                    //接受消息超时回调
-    reconnectFn?(rCount?: number): void;                        //重连
-    reconnectEndFn?(): void;                                    //重连结束回调
+    onError?: fna;                                       //错误回调
+    errorSendFn?: fna;                                   //网络状态错误发送消息时回调
+    msgTimeOutFn?: fna;                                  //接受消息超时回调
+    heartTimeOutFn?: fna;                                //接受消息超时回调
+    reconnectFn?: fna;                                   //重连
+    reconnectEndFn?: fna;                                //重连结束回调
 
-    getHearbeat?(): socketData;                                 //心跳包
+    getHearbeat?: fnd;                                   //心跳包
 }
 
 export interface socketOp {
@@ -39,21 +41,21 @@ class baseWs {
     private _msgTimerOut: any = null;           //消息超时检测
     private _reconnectTimer: any = null;        //重连定时器
 
-    private _ws: WebSocket;
-    private _op: socketOp;
+    private _ws!: WebSocket | null;
+    private _op!: socketOp | null;
 
-    private _msgTimeOutFn: () => void;
-    private _heartTimeOutFn: () => void;
-    private _errorSendFn: (readyState?: number) => void;
-    private _reconnectEndFn: () => void;
-    private _reconnectFn: (rCount?: number) => void;
+    private _msgTimeOutFn!: fna;
+    private _heartTimeOutFn!: fna;
+    private _errorSendFn!: fna;
+    private _reconnectEndFn!: fna;
+    private _reconnectFn!: fna;
 
-    private _hearDataFn: () => socketData;
+    private _hearDataFn!: fnd;
 
-    private _onMessage: (event: any) => void;
-    private _onConnected: (event?: any) => void;
-    private _onClosed: (event?: any) => void;
-    private _onError: (event?: any) => void;
+    private _onMessage!: fna;
+    private _onConnected!: fna;
+    private _onClosed!: fna;
+    private _onError!: fna;
 
     public createWs(op: socketOp, fn: socketFn) {
         this._op = op;
@@ -83,10 +85,14 @@ class baseWs {
 
     private _nWs() {
         if (this._ws && (this._ws.readyState === WebSocket.OPEN || this._ws.readyState === WebSocket.CONNECTING)) return;
+        // @ts-ignore
         this._ws = new WebSocket(this._op.url);
+        // @ts-ignore
         this._ws.binaryType = this._op.binaryType ? this._op.binaryType : "arraybuffer";
+        // @ts-ignore
         this._ws.onopen = this._onopen.bind(this);
         this._ws.onmessage = this._onmessage.bind(this);
+        // @ts-ignore
         this._ws.onclose = this._onclose.bind(this);
         this._ws.onerror = this._onerror.bind(this);
     }
@@ -115,6 +121,7 @@ class baseWs {
         if (this._autoReconnect <= 0) return;
         this._autoReconnect--;
         if (this._autoReconnect <= 0) {
+            // @ts-ignore
             this._reconnectEndFn && this._reconnectEndFn();
             return;
         }
@@ -142,6 +149,7 @@ class baseWs {
         this._clearHeartTimerOut();
         this._heartTimerOut = setTimeout(() => {
             this._closeWs();
+            // @ts-ignore
             this._heartTimeOutFn && this._heartTimeOutFn();
         }, this._heartTimeOut);
     }
@@ -150,6 +158,7 @@ class baseWs {
         this._clearMsgTimerOut();
         this._msgTimerOut = setTimeout(() => {
             this._closeWs();
+            // @ts-ignore
             this._msgTimeOutFn && this._msgTimeOutFn();
         }, this._msgTimeOut);
     }
