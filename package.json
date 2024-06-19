@@ -6,7 +6,7 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-     "build": "tsc"
+    "build": "tsc"
   },
   "keywords": [
     "webSocket",
@@ -18,5 +18,8 @@
     "url": "https://github.com/haizeiym/sp-wsocket.git"
   },
   "author": "wnls",
-  "license": "ISC"
+  "license": "ISC",
+  "devDependencies": {
+    "typescript": "^5.4.5"
+  }
 }
