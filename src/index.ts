@@ -1,8 +1,9 @@
+// @ts-nocheck
 const socket: { [key: number]: baseWs } = Object.create(null);
 
 type socketData = (string | ArrayBufferLike | Blob | ArrayBufferView);
-type fna = ((event?: any) => void) | undefined | null;
-type fnd = (() => socketData) | undefined | null;
+type fna = ((event?: any) => void) | null;
+type fnd = (() => socketData) | null;
 
 export interface socketFn {
     onConnected: fna;                                    //连接回调
@@ -41,21 +42,21 @@ class baseWs {
     private _msgTimerOut: any = null;           //消息超时检测
     private _reconnectTimer: any = null;        //重连定时器
 
-    private _ws!: WebSocket | null;
-    private _op!: socketOp | null;
+    private _ws: WebSocket;
+    private _op: socketOp;
 
-    private _msgTimeOutFn!: fna;
-    private _heartTimeOutFn!: fna;
-    private _errorSendFn!: fna;
-    private _reconnectEndFn!: fna;
-    private _reconnectFn!: fna;
+    private _msgTimeOutFn: fna;
+    private _heartTimeOutFn: fna;
+    private _errorSendFn: fna;
+    private _reconnectEndFn: fna;
+    private _reconnectFn: fna;
 
-    private _hearDataFn!: fnd;
+    private _hearDataFn: fnd;
 
-    private _onMessage!: fna;
-    private _onConnected!: fna;
-    private _onClosed!: fna;
-    private _onError!: fna;
+    private _onMessage: fna;
+    private _onConnected: fna;
+    private _onClosed: fna;
+    private _onError: fna;
 
     public createWs(op: socketOp, fn: socketFn) {
         this._op = op;
@@ -85,14 +86,10 @@ class baseWs {
 
     private _nWs() {
         if (this._ws && (this._ws.readyState === WebSocket.OPEN || this._ws.readyState === WebSocket.CONNECTING)) return;
-        // @ts-ignore
         this._ws = new WebSocket(this._op.url);
-        // @ts-ignore
         this._ws.binaryType = this._op.binaryType ? this._op.binaryType : "arraybuffer";
-        // @ts-ignore
         this._ws.onopen = this._onopen.bind(this);
         this._ws.onmessage = this._onmessage.bind(this);
-        // @ts-ignore
         this._ws.onclose = this._onclose.bind(this);
         this._ws.onerror = this._onerror.bind(this);
     }
@@ -121,7 +118,6 @@ class baseWs {
         if (this._autoReconnect <= 0) return;
         this._autoReconnect--;
         if (this._autoReconnect <= 0) {
-            // @ts-ignore
             this._reconnectEndFn && this._reconnectEndFn();
             return;
         }
@@ -149,7 +145,6 @@ class baseWs {
         this._clearHeartTimerOut();
         this._heartTimerOut = setTimeout(() => {
             this._closeWs();
-            // @ts-ignore
             this._heartTimeOutFn && this._heartTimeOutFn();
         }, this._heartTimeOut);
     }
@@ -158,7 +153,6 @@ class baseWs {
         this._clearMsgTimerOut();
         this._msgTimerOut = setTimeout(() => {
             this._closeWs();
-            // @ts-ignore
             this._msgTimeOutFn && this._msgTimeOutFn();
         }, this._msgTimeOut);
     }
