@@ -1,6 +1,6 @@
 {
   "name": "sp-wsocket",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "简易webSocket连接",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
