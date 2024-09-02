@@ -4,6 +4,8 @@
   "description": "简易webSocket连接",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "type": "module",
+  "module": "ES6",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "tsc"
@@ -20,7 +22,7 @@
   "author": "wnls",
   "license": "ISC",
   "devDependencies": {
-    "typescript": "^5.4.5"
+    "typescript": "^4.5.5"
   },
   "files": [
     "dist",
