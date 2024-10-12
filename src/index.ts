@@ -41,25 +41,25 @@ class baseWs {
     private _heartTimerOut: any = null;         //心跳超时检测
     private _msgTimerOut: any = null;           //消息超时检测
     private _reconnectTimer: any = null;        //重连定时器
-
-    private _ws: WebSocket;
-    private _op: socketOp;
-
+    
     private _msgTimeOutFn: fna;
     private _heartTimeOutFn: fna;
     private _errorSendFn: fna;
     private _reconnectEndFn: fna;
     private _reconnectFn: fna;
-
+    
     private _hearDataFn: fnd;
-
+    
     private _onMessage: fna;
     private _onConnected: fna;
     private _onClosed: fna;
     private _onError: fna;
-
+    
+    public ws: WebSocket;
+    public op: socketOp;
+    
     public createWs(op: socketOp, fn: socketFn) {
-        this._op = op;
+        this.op = op;
 
         this._onMessage = fn.onMessage && fn.onMessage.bind(fn);
         this._onConnected = fn.onConnected && fn.onConnected.bind(fn);
@@ -85,13 +85,13 @@ class baseWs {
     }
 
     private _nWs() {
-        if (this._ws && (this._ws.readyState === WebSocket.OPEN || this._ws.readyState === WebSocket.CONNECTING)) return;
-        this._ws = new WebSocket(this._op.url);
-        this._ws.binaryType = this._op.binaryType ? this._op.binaryType : "arraybuffer";
-        this._ws.onopen = this._onopen.bind(this);
-        this._ws.onmessage = this._onmessage.bind(this);
-        this._ws.onclose = this._onclose.bind(this);
-        this._ws.onerror = this._onerror.bind(this);
+        if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) return;
+        this.ws = new WebSocket(this.op.url);
+        this.ws.binaryType = this.op.binaryType ? this.op.binaryType : "arraybuffer";
+        this.ws.onopen = this._onopen.bind(this);
+        this.ws.onmessage = this._onmessage.bind(this);
+        this.ws.onclose = this._onclose.bind(this);
+        this.ws.onerror = this._onerror.bind(this);
     }
 
     private _onmessage(event: MessageEvent) {
@@ -102,7 +102,7 @@ class baseWs {
     }
 
     private _onopen(event: MessageEvent) {
-        if (this._op && this._op.autoReconnect) this._autoReconnect = this._op.autoReconnect;
+        if (this.op && this.op.autoReconnect) this._autoReconnect = this.op.autoReconnect;
         this._clearTimer();
         this._onConnected && this._onConnected(event);
     }
@@ -137,7 +137,7 @@ class baseWs {
     private _resetHearSendTimer() {
         this._clearHeartSendTimer();
         this._heartSendTimer = setTimeout(() => {
-            this._hearDataFn && this._ws && this._ws.readyState == WebSocket.OPEN && this._ws.send(this._hearDataFn());
+            this._hearDataFn && this.ws && this.ws.readyState == WebSocket.OPEN && this.ws.send(this._hearDataFn());
         }, this._heartSendTime);
     }
 
@@ -182,8 +182,8 @@ class baseWs {
 
     private _closeWs() {
         this._clearTimer();
-        if (!this._ws || this._ws.readyState === WebSocket.CLOSED || this._ws.readyState === WebSocket.CLOSING) return;
-        this._ws.close();
+        if (!this.ws || this.ws.readyState === WebSocket.CLOSED || this.ws.readyState === WebSocket.CLOSING) return;
+        this.ws.close();
     }
 
     public remove() {
@@ -209,16 +209,16 @@ class baseWs {
         this._onError = null;
         this._onClosed = null;
 
-        this._op = null;
-        this._ws = null;
+        this.op = null;
+        this.ws = null;
     }
 
     public sendWs(data: socketData) {
-        if (this._ws && this._ws.readyState == WebSocket.OPEN) {
+        if (this.ws && this.ws.readyState == WebSocket.OPEN) {
             this._resetMsgTimerOut();
-            this._ws.send(data);
+            this.ws.send(data);
         } else {
-            this._errorSendFn && this._errorSendFn(this._ws ? this._ws.readyState : -1);
+            this._errorSendFn && this._errorSendFn(this.ws ? this.ws.readyState : -1);
         }
     }
 
@@ -242,5 +242,13 @@ export const sendWs = (channelId: number, data: socketData) => {
     let bs: baseWs = socket[channelId];
     if (!bs) return;
     bs.sendWs(data);
+}
+
+export const allSocket = ()=>{
+    return socket;
+}
+
+export const getSocket = (channelId: number)=>{
+    return socket[channelId];
 }
 
