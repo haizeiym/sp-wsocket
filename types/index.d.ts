@@ -42,7 +42,18 @@ export declare class WebSocketClient {
     close(): void;
     destroy(): void;
 }
-export declare const createWebSocket: (channelId: number, options: WebSocketOptions, callbacks: WebSocketCallbacks) => void;
-export declare const removeWebSocket: (channelId: number) => void;
-export declare const sendWebSocketMessage: (channelId: number, data: SocketData) => void;
+declare class WebSocketManager {
+    private static wsInstances;
+    static createWebSocket(channelId: number, options: WebSocketOptions, callbacks: WebSocketCallbacks): void;
+    static removeWebSocket(channelId: number): void;
+    static sendWebSocketMessage(channelId: number, data: SocketData): void;
+}
 export type { WebSocketOptions, WebSocketCallbacks, SocketData };
+export declare const createWebSocket: typeof WebSocketManager.createWebSocket, removeWebSocket: typeof WebSocketManager.removeWebSocket, sendWebSocketMessage: typeof WebSocketManager.sendWebSocketMessage;
+declare const _default: {
+    WebSocketClient: typeof WebSocketClient;
+    createWebSocket: typeof WebSocketManager.createWebSocket;
+    removeWebSocket: typeof WebSocketManager.removeWebSocket;
+    sendWebSocketMessage: typeof WebSocketManager.sendWebSocketMessage;
+};
+export default _default;
