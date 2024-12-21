@@ -1,33 +1,40 @@
 {
   "name": "sp-wsocket",
-  "version": "1.1.0",
-  "description": "简易webSocket连接",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "type": "module",
-  "module": "ES6",
+  "version": "1.0.0",
+  "description": "WebSocket client with heartbeat and reconnection support",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./types/index.d.ts",
+  "exports": {
+    ".": {
+      "require": "./dist/cjs/index.js",
+      "import": "./dist/esm/index.js",
+      "types": "./types/index.d.ts"
+    }
+  },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "tsc"
+    "clean": "rimraf dist types",
+    "build:esm": "tsc",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "build": "npm run clean && npm run build:esm && npm run build:cjs",
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
-    "webSocket",
-    "Socket",
-    "ws"
+    "websocket",
+    "typescript",
+    "heartbeat",
+    "reconnection"
   ],
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/haizeiym/sp-wsocket.git"
-  },
-  "author": "wnls",
-  "license": "ISC",
+  "author": "",
+  "license": "MIT",
   "devDependencies": {
-    "typescript": "^4.5.5"
+    "rimraf": "^3.0.2",
+    "typescript": "^4.9.5"
   },
   "files": [
     "dist",
-    "src",
-    "package.json",
-    "package-lock.json"
-  ]
+    "types",
+    "README.md"
+  ],
+  "sideEffects": false
 }
