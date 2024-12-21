@@ -14,8 +14,8 @@
   },
   "scripts": {
     "clean": "rimraf dist types",
-    "build:esm": "tsc",
-    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "build:esm": "tsc --project tsconfig.json",
+    "build:cjs": "tsc --project tsconfig.cjs.json",
     "build": "npm run clean && npm run build:esm && npm run build:cjs",
     "prepublishOnly": "npm run build"
   },
