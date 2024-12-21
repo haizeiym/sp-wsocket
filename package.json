@@ -1,22 +1,24 @@
 {
   "name": "sp-wsocket",
-  "version": "2.0.5",
+  "version": "2.0.12",
   "description": "WebSocket client with heartbeat and reconnection support",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./types/index.d.ts",
   "exports": {
     ".": {
-      "require": "./dist/cjs/index.js",
+      "types": "./types/index.d.ts",
       "import": "./dist/esm/index.js",
-      "types": "./types/index.d.ts"
+      "require": "./dist/cjs/index.js"
     }
   },
+  "type": "module",
   "scripts": {
     "clean": "rimraf dist types",
-    "build:esm": "tsc --project tsconfig.json",
+    "build:esm": "tsc --project tsconfig.esm.json",
     "build:cjs": "tsc --project tsconfig.cjs.json",
-    "build": "npm run clean && npm run build:esm && npm run build:cjs",
+    "build:types": "tsc --project tsconfig.types.json",
+    "build": "npm run clean && npm run build:types && npm run build:esm && npm run build:cjs",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
