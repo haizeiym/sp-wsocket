@@ -36,26 +36,30 @@ export declare class WebSocketClient {
     private resetHeartbeat;
     private clearTimer;
     private clearAllTimers;
-    send(data: SocketData): void;
+    send(data: SocketData): boolean;
     private startMessageTimeout;
     isConnected(): boolean;
     close(): void;
     destroy(): void;
+    getWebSocket(): WebSocket | null;
 }
 export declare const WS: {
     wsInstances: Map<number, WebSocketClient>;
     createWebSocket(channelId: number, options: WebSocketOptions, callbacks: WebSocketCallbacks): void;
     removeWebSocket(channelId: number): void;
-    sendWebSocketMessage(channelId: number, data: SocketData): void;
+    sendWebSocketMessage(channelId: number, data: SocketData): boolean;
+    getWebSocketInstance(channelId: number): WebSocket | null;
 };
 export type { WebSocketOptions, WebSocketCallbacks, SocketData };
 export declare const createWebSocket: (channelId: number, options: WebSocketOptions, callbacks: WebSocketCallbacks) => void;
 export declare const removeWebSocket: (channelId: number) => void;
-export declare const sendWebSocketMessage: (channelId: number, data: SocketData) => void;
+export declare const sendWebSocketMessage: (channelId: number, data: SocketData) => boolean;
+export declare const getWebSocketInstance: (channelId: number) => WebSocket | null;
 declare const _default: {
     WebSocketClient: typeof WebSocketClient;
     createWebSocket: (channelId: number, options: WebSocketOptions, callbacks: WebSocketCallbacks) => void;
     removeWebSocket: (channelId: number) => void;
-    sendWebSocketMessage: (channelId: number, data: SocketData) => void;
+    sendWebSocketMessage: (channelId: number, data: SocketData) => boolean;
+    getWebSocketInstance: (channelId: number) => WebSocket | null;
 };
 export default _default;

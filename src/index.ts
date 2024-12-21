@@ -137,19 +137,15 @@ export class WebSocketClient {
         });
     }
 
-    public send(data: SocketData): void {
+    public send(data: SocketData): boolean {
         if (!this.isConnected()) {
             this.callbacks.onSendError?.(this.ws?.readyState ?? -1);
-            return;
+            return false;
         }
 
-        try {
-            this.ws!.send(data);
-            this.startMessageTimeout();
-        } catch (error) {
-            console.error("Error sending message:", error);
-            this.callbacks.onSendError?.(error);
-        }
+        this.ws!.send(data);
+        this.startMessageTimeout();
+        return true;
     }
 
     private startMessageTimeout(): void {
@@ -175,6 +171,10 @@ export class WebSocketClient {
         this.ws = null;
         this.callbacks = {} as WebSocketCallbacks;
     }
+
+    public getWebSocket(): WebSocket | null {
+        return this.ws;
+    }
 }
 
 // 创建一个单例管理器
@@ -195,11 +195,17 @@ export const WS = {
         }
     },
 
-    sendWebSocketMessage(channelId: number, data: SocketData): void {
+    sendWebSocketMessage(channelId: number, data: SocketData): boolean {
         const ws = this.wsInstances.get(channelId);
         if (ws) {
-            ws.send(data);
+            return ws.send(data);
         }
+        return false;
+    },
+
+    getWebSocketInstance(channelId: number): WebSocket | null {
+        const ws = this.wsInstances.get(channelId);
+        return ws?.getWebSocket() ?? null;
     }
 };
 
@@ -214,11 +220,13 @@ export type {
 export const createWebSocket = WS.createWebSocket.bind(WS);
 export const removeWebSocket = WS.removeWebSocket.bind(WS);
 export const sendWebSocketMessage = WS.sendWebSocketMessage.bind(WS);
+export const getWebSocketInstance = WS.getWebSocketInstance.bind(WS);
 
 // 默认导出
 export default {
     WebSocketClient,
     createWebSocket,
     removeWebSocket,
-    sendWebSocketMessage
+    sendWebSocketMessage,
+    getWebSocketInstance
 };
