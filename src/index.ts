@@ -22,7 +22,7 @@ interface WebSocketOptions {
     messageTimeout?: number; // 消息超时时间(ms)
     heartbeatInterval?: number; // 心跳发送间隔(ms)
     heartbeatTimeout?: number; // 心跳超时时间(ms)
-    binaryType?: BinaryType; // 二进制数���类型
+    binaryType?: BinaryType; // 二进制类���
 }
 
 export class WebSocketClient {
@@ -177,31 +177,31 @@ export class WebSocketClient {
     }
 }
 
-// 创建一个默认的实例管理器
-class WebSocketManager {
-    private static wsInstances = new Map<number, WebSocketClient>();
+// 创建一个单例管理器
+export const WS = {
+    wsInstances: new Map<number, WebSocketClient>(),
 
-    static createWebSocket(channelId: number, options: WebSocketOptions, callbacks: WebSocketCallbacks): void {
+    createWebSocket(channelId: number, options: WebSocketOptions, callbacks: WebSocketCallbacks): void {
         if (this.wsInstances.has(channelId)) {
             this.wsInstances.get(channelId)!.destroy();
         }
         this.wsInstances.set(channelId, new WebSocketClient(options, callbacks));
-    }
+    },
 
-    static removeWebSocket(channelId: number): void {
+    removeWebSocket(channelId: number): void {
         if (this.wsInstances.has(channelId)) {
             this.wsInstances.get(channelId)!.destroy();
             this.wsInstances.delete(channelId);
         }
-    }
+    },
 
-    static sendWebSocketMessage(channelId: number, data: SocketData): void {
+    sendWebSocketMessage(channelId: number, data: SocketData): void {
         const ws = this.wsInstances.get(channelId);
         if (ws) {
             ws.send(data);
         }
     }
-}
+};
 
 // 导出类型
 export type { 
@@ -210,14 +210,12 @@ export type {
     SocketData 
 };
 
-// 导出工具方法
-export const { 
-    createWebSocket, 
-    removeWebSocket, 
-    sendWebSocketMessage 
-} = WebSocketManager;
+// 导出所有方法
+export const createWebSocket = WS.createWebSocket.bind(WS);
+export const removeWebSocket = WS.removeWebSocket.bind(WS);
+export const sendWebSocketMessage = WS.sendWebSocketMessage.bind(WS);
 
-// 为了支持 CommonJS 的 require，添加默认导出
+// 默认导出
 export default {
     WebSocketClient,
     createWebSocket,
