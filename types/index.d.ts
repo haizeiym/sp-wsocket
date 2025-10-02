@@ -27,6 +27,7 @@ export declare class WebSocketClient {
     private options;
     private callbacks;
     private reconnectCount;
+    private isHandlingError;
     private timers;
     constructor(options: WebSocketOptions, callbacks: WebSocketCallbacks);
     private connect;
@@ -34,12 +35,13 @@ export declare class WebSocketClient {
     private handleConnectionError;
     private startHeartbeat;
     private resetHeartbeat;
+    private sendHeartbeat;
+    private handleTimeoutAndReconnect;
     private clearTimer;
     private clearAllTimers;
-    send(data: SocketData): boolean;
     private startMessageTimeout;
-    isConnected(): boolean;
-    close(): void;
+    private isConnected;
+    send(data: SocketData): boolean;
     destroy(): void;
     getWebSocket(): WebSocket | null;
 }
@@ -50,7 +52,7 @@ export declare const WS: {
     sendWebSocketMessage(channelId: number, data: SocketData): boolean;
     getWebSocketInstance(channelId: number): WebSocket | null;
 };
-export type { WebSocketOptions, WebSocketCallbacks, SocketData };
+export type { SocketData, WebSocketCallbacks, WebSocketOptions };
 export declare const createWebSocket: (channelId: number, options: WebSocketOptions, callbacks: WebSocketCallbacks) => void;
 export declare const removeWebSocket: (channelId: number) => void;
 export declare const sendWebSocketMessage: (channelId: number, data: SocketData) => boolean;
