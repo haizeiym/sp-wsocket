@@ -20,6 +20,7 @@ interface WebSocketOptions {
     messageTimeout?: number;
     heartbeatInterval?: number;
     heartbeatTimeout?: number;
+    randomTime?: number;
     binaryType?: BinaryType;
 }
 export declare class WebSocketClient {
@@ -28,6 +29,8 @@ export declare class WebSocketClient {
     private callbacks;
     private reconnectCount;
     private isHandlingError;
+    private isConnecting;
+    private lastCloseTime;
     private timers;
     constructor(options: WebSocketOptions, callbacks: WebSocketCallbacks);
     private connect;
