@@ -22,6 +22,7 @@ interface WebSocketOptions {
     messageTimeout?: number; // 消息超时时间(ms)
     heartbeatInterval?: number; // 心跳发送间隔(ms)
     heartbeatTimeout?: number; // 心跳超时时间(ms)
+    randomTime?: number; // 随机时间(s)
     binaryType?: BinaryType; // 二进制类型
 }
 
@@ -30,7 +31,9 @@ export class WebSocketClient {
     private options: WebSocketOptions;
     private callbacks: WebSocketCallbacks;
     private reconnectCount: number = 0;
-    private isHandlingError: boolean = false; // 防止重复处理连接错误
+    private isHandlingError: boolean = false; 
+    private isConnecting: boolean = false; 
+    private lastCloseTime: number = 0; 
     private timers = {
         heartbeatSend: null as any,
         heartbeatCheck: null as any,
@@ -45,6 +48,7 @@ export class WebSocketClient {
             messageTimeout: 5000,
             heartbeatInterval: 10000,
             heartbeatTimeout: 15000,
+            randomTime: 2,
             binaryType: "arraybuffer",
             ...options
         };
@@ -59,22 +63,43 @@ export class WebSocketClient {
     }
 
     private connect(): void {
+        // 防止重复连接
+        if (this.isConnecting) {
+            console.warn("WebSocket is already connecting, skipping duplicate connect call");
+            return;
+        }
+
         try {
+            this.isConnecting = true;
+
+            // 清理旧连接和定时器
+            this.clearAllTimers();
+
             if (this.ws) {
-                this.ws.onopen = null;
-                this.ws.onmessage = null;
-                this.ws.onclose = null;
-                this.ws.onerror = null;
-                if (this.ws.readyState !== WebSocket.CLOSED) {
-                    this.ws.close();
+                const oldWs = this.ws;
+                this.ws = null; // 立即设为null，防止旧连接的事件影响
+
+                oldWs.onopen = null;
+                oldWs.onmessage = null;
+                oldWs.onclose = null;
+                oldWs.onerror = null;
+
+                if (oldWs.readyState !== WebSocket.CLOSED && oldWs.readyState !== WebSocket.CLOSING) {
+                    oldWs.close();
                 }
             }
+
+            // 创建新连接
             this.ws = new WebSocket(this.options.url);
             this.ws.binaryType = this.options.binaryType!;
             this.setupEventListeners();
         } catch (error) {
             console.error("WebSocket connection error:", error);
-            this.handleConnectionError();
+            this.isConnecting = false;
+            if (!this.isHandlingError) {
+                this.isHandlingError = true;
+                this.handleConnectionError();
+            }
         }
     }
 
@@ -82,6 +107,7 @@ export class WebSocketClient {
         if (!this.ws) return;
 
         this.ws.onopen = () => {
+            this.isConnecting = false; // 连接成功，重置标志
             this.reconnectCount = 0;
             this.isHandlingError = false;
             this.startHeartbeat();
@@ -96,15 +122,29 @@ export class WebSocketClient {
         };
 
         this.ws.onclose = () => {
+            this.isConnecting = false; 
+
+            const now = Date.now();
+            if (now - this.lastCloseTime < 100) {
+                return; 
+            }
+            this.lastCloseTime = now;
+
             if (this.isHandlingError) return;
             this.isHandlingError = true;
 
             this.clearAllTimers();
-            this.callbacks.onClosed?.(null);
+
+            if (this.reconnectCount === 0) {
+                this.callbacks.onClosed?.(null);
+            }
+
             this.handleConnectionError();
         };
 
         this.ws.onerror = (error) => {
+            // 不在这里重置 isConnecting，等待 onclose 处理
+            // 因为 onerror 之后一定会触发 onclose
             this.callbacks.onError?.(error);
         };
     }
@@ -114,10 +154,14 @@ export class WebSocketClient {
             this.reconnectCount++;
             this.callbacks.onReconnecting?.(this.options.reconnectAttempts! - this.reconnectCount);
             this.clearTimer("reconnect");
-            this.timers.reconnect = setTimeout(() => this.connect(), this.options.reconnectInterval);
+            this.timers.reconnect = setTimeout(() => {
+                this.isHandlingError = false;
+                this.connect();
+            }, this.options.reconnectInterval! + Math.random() * this.options.randomTime!);
         } else {
             this.callbacks.onReconnectFailed?.(null);
             this.ws = null;
+            this.isHandlingError = false;
         }
     }
 
@@ -129,7 +173,7 @@ export class WebSocketClient {
                 const heartbeatData = this.callbacks.getHeartbeat!();
                 this.sendHeartbeat(heartbeatData);
             }
-        }, this.options.heartbeatInterval);
+        }, this.options.heartbeatInterval! + Math.random() * this.options.randomTime!);
     }
 
     private resetHeartbeat(): void {
@@ -139,7 +183,7 @@ export class WebSocketClient {
 
         this.timers.heartbeatCheck = setTimeout(() => {
             this.handleTimeoutAndReconnect(this.callbacks.onHeartbeatTimeout);
-        }, this.options.heartbeatTimeout);
+        }, this.options.heartbeatTimeout! + Math.random() * this.options.randomTime!);
     }
 
     private sendHeartbeat(data: SocketData): void {
@@ -199,10 +243,17 @@ export class WebSocketClient {
     }
 
     public destroy(): void {
+        this.isConnecting = false; 
+        this.isHandlingError = false;
         this.clearAllTimers();
+
         if (this.ws) {
+            this.ws.onopen = null;
+            this.ws.onmessage = null;
             this.ws.onclose = null;
-            if (this.ws.readyState !== WebSocket.CLOSED) {
+            this.ws.onerror = null;
+
+            if (this.ws.readyState !== WebSocket.CLOSED && this.ws.readyState !== WebSocket.CLOSING) {
                 this.ws.close();
             }
             this.callbacks.onClosed?.(null);
