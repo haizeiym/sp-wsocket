@@ -8,7 +8,6 @@ interface WebSocketCallbacks {
     onClosed: CallbackFunction; // 关闭回调
     onError?: CallbackFunction; // 错误回调
     onSendError?: CallbackFunction; // 发送消息错误回调
-    onMessageTimeout?: CallbackFunction; // 消息超时回调
     onHeartbeatTimeout?: CallbackFunction; // 心跳超时回调
     onReconnecting?: CallbackFunction; // 重连中回调
     onReconnectFailed?: CallbackFunction; // 重连失败回调
@@ -19,11 +18,11 @@ interface WebSocketOptions {
     url: string;
     reconnectAttempts?: number; // 重连次数
     reconnectInterval?: number; // 重连间隔(ms)
-    messageTimeout?: number; // 消息超时时间(ms)
     heartbeatInterval?: number; // 心跳发送间隔(ms)
     heartbeatTimeout?: number; // 心跳超时时间(ms)
     randomTime?: number; // 随机时间(s)
     binaryType?: BinaryType; // 二进制类型
+    enableMessageBuffer?: boolean; // 是否启用消息缓冲
 }
 
 export class WebSocketClient {
@@ -31,13 +30,12 @@ export class WebSocketClient {
     private options: WebSocketOptions;
     private callbacks: WebSocketCallbacks;
     private reconnectCount: number = 0;
-    private isHandlingError: boolean = false; 
     private isConnecting: boolean = false; 
-    private lastCloseTime: number = 0; 
+    private hasEverConnected: boolean = false; // 标记是否曾经连接成功过 
+    private messageQueue: SocketData[] = []; // 消息缓冲队列
     private timers = {
         heartbeatSend: null as any,
         heartbeatCheck: null as any,
-        messageTimeout: null as any,
         reconnect: null as any
     };
 
@@ -45,11 +43,11 @@ export class WebSocketClient {
         this.options = {
             reconnectAttempts: 3,
             reconnectInterval: 5000,
-            messageTimeout: 5000,
             heartbeatInterval: 10000,
             heartbeatTimeout: 15000,
             randomTime: 2,
             binaryType: "arraybuffer",
+            enableMessageBuffer: false, // 默认关闭消息缓冲
             ...options
         };
         this.callbacks = callbacks;
@@ -77,16 +75,8 @@ export class WebSocketClient {
 
             if (this.ws) {
                 const oldWs = this.ws;
-                this.ws = null; // 立即设为null，防止旧连接的事件影响
-
-                oldWs.onopen = null;
-                oldWs.onmessage = null;
-                oldWs.onclose = null;
-                oldWs.onerror = null;
-
-                if (oldWs.readyState !== WebSocket.CLOSED && oldWs.readyState !== WebSocket.CLOSING) {
-                    oldWs.close();
-                }
+                this.ws = null;
+                this.cleanupOldConnection(oldWs);
             }
 
             // 创建新连接
@@ -96,10 +86,7 @@ export class WebSocketClient {
         } catch (error) {
             console.error("WebSocket connection error:", error);
             this.isConnecting = false;
-            if (!this.isHandlingError) {
-                this.isHandlingError = true;
-                this.handleConnectionError();
-            }
+            this.handleConnectionError();
         }
     }
 
@@ -107,39 +94,40 @@ export class WebSocketClient {
         if (!this.ws) return;
 
         this.ws.onopen = () => {
-            this.isConnecting = false; // 连接成功，重置标志
-            this.reconnectCount = 0;
-            this.isHandlingError = false;
+            this.isConnecting = false;
+            
+            if (!this.hasEverConnected) {
+                this.reconnectCount = 0;
+                this.hasEverConnected = true;
+            }
+            
+            // 如果启用了消息缓冲，发送缓冲队列中的消息
+            if (this.options.enableMessageBuffer) {
+                this.flushMessageQueue();
+            }
+            
             this.startHeartbeat();
             this.resetHeartbeat();
             this.callbacks.onConnected?.(null);
         };
 
         this.ws.onmessage = (event) => {
-            this.clearTimer("messageTimeout");
             this.resetHeartbeat();
             this.callbacks.onMessage?.(event.data);
         };
 
         this.ws.onclose = () => {
-            this.isConnecting = false; 
-
-            const now = Date.now();
-            if (now - this.lastCloseTime < 100) {
-                return; 
-            }
-            this.lastCloseTime = now;
-
-            if (this.isHandlingError) return;
-            this.isHandlingError = true;
-
+            this.isConnecting = false;
             this.clearAllTimers();
 
             if (this.reconnectCount === 0) {
                 this.callbacks.onClosed?.(null);
             }
 
-            this.handleConnectionError();
+            // 只有在没有重连定时器时才处理，避免重复调用
+            if (!this.timers.reconnect) {
+                this.handleConnectionError();
+            }
         };
 
         this.ws.onerror = (error) => {
@@ -154,14 +142,24 @@ export class WebSocketClient {
             this.reconnectCount++;
             this.callbacks.onReconnecting?.(this.options.reconnectAttempts! - this.reconnectCount);
             this.clearTimer("reconnect");
+            
+            // 指数退避重连策略
+            const baseDelay = this.options.reconnectInterval!;
+            const backoffDelay = Math.min(baseDelay * Math.pow(1.5, this.reconnectCount - 1), 30000); // 最大30秒
+            const randomDelay = Math.random() * this.options.randomTime! * 1000;
+            const totalDelay = backoffDelay + randomDelay;
+            
             this.timers.reconnect = setTimeout(() => {
-                this.isHandlingError = false;
                 this.connect();
-            }, this.options.reconnectInterval! + Math.random() * this.options.randomTime!);
+            }, totalDelay);
         } else {
             this.callbacks.onReconnectFailed?.(null);
             this.ws = null;
-            this.isHandlingError = false;
+            
+            // 30秒后重置重连次数，允许网络恢复后重连
+            setTimeout(() => {
+                this.reconnectCount = 0;
+            }, 30000);
         }
     }
 
@@ -193,13 +191,9 @@ export class WebSocketClient {
     }
 
     private handleTimeoutAndReconnect(timeoutCallback?: CallbackFunction): void {
-        if (this.isHandlingError) return;
-        this.isHandlingError = true;
         timeoutCallback?.(null);
-        if (this.ws) this.ws.onclose = null;
-        this.clearAllTimers();
+        this.cleanupConnection();
         this.callbacks?.onClosed?.(null);
-        this.ws?.close();
         this.handleConnectionError();
     }
 
@@ -220,12 +214,23 @@ export class WebSocketClient {
         });
     }
 
-    private startMessageTimeout(): void {
-        this.clearTimer("messageTimeout");
-        this.timers.messageTimeout = setTimeout(() => {
-            this.handleTimeoutAndReconnect(this.callbacks.onMessageTimeout);
-        }, this.options.messageTimeout);
+    private cleanupConnection(): void {
+        this.clearAllTimers();
+        if (this.ws) {
+            this.cleanupOldConnection(this.ws);
+        }
     }
+
+    private cleanupOldConnection(ws: WebSocket): void {
+        ws.onopen = null;
+        ws.onmessage = null;
+        ws.onclose = null;
+        ws.onerror = null;
+        if (ws.readyState !== WebSocket.CLOSED && ws.readyState !== WebSocket.CLOSING) {
+            ws.close();
+        }
+    }
+
 
     private isConnected(): boolean {
         return this.ws?.readyState === WebSocket.OPEN;
@@ -233,31 +238,31 @@ export class WebSocketClient {
 
     public send(data: SocketData): boolean {
         if (!this.isConnected()) {
+            // 如果启用了消息缓冲，将消息加入缓冲队列
+            if (this.options.enableMessageBuffer) {
+                this.messageQueue.push(data);
+            }
             this.callbacks.onSendError?.(this.ws?.readyState ?? -1);
             return false;
         }
 
         this.ws!.send(data);
-        this.startMessageTimeout();
         return true;
     }
 
-    public destroy(): void {
-        this.isConnecting = false; 
-        this.isHandlingError = false;
-        this.clearAllTimers();
-
-        if (this.ws) {
-            this.ws.onopen = null;
-            this.ws.onmessage = null;
-            this.ws.onclose = null;
-            this.ws.onerror = null;
-
-            if (this.ws.readyState !== WebSocket.CLOSED && this.ws.readyState !== WebSocket.CLOSING) {
-                this.ws.close();
+    private flushMessageQueue(): void {
+        while (this.messageQueue.length > 0 && this.isConnected()) {
+            const message = this.messageQueue.shift();
+            if (message) {
+                this.ws!.send(message);
             }
-            this.callbacks.onClosed?.(null);
         }
+    }
+
+    public destroy(): void {
+        this.isConnecting = false;
+        this.cleanupConnection();
+        this.callbacks.onClosed?.(null);
         this.ws = null;
         this.callbacks = {} as WebSocketCallbacks;
     }
