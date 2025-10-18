@@ -7,7 +7,6 @@ interface WebSocketCallbacks {
     onClosed: CallbackFunction;
     onError?: CallbackFunction;
     onSendError?: CallbackFunction;
-    onMessageTimeout?: CallbackFunction;
     onHeartbeatTimeout?: CallbackFunction;
     onReconnecting?: CallbackFunction;
     onReconnectFailed?: CallbackFunction;
@@ -17,20 +16,20 @@ interface WebSocketOptions {
     url: string;
     reconnectAttempts?: number;
     reconnectInterval?: number;
-    messageTimeout?: number;
     heartbeatInterval?: number;
     heartbeatTimeout?: number;
     randomTime?: number;
     binaryType?: BinaryType;
+    enableMessageBuffer?: boolean;
 }
 export declare class WebSocketClient {
     private ws;
     private options;
     private callbacks;
     private reconnectCount;
-    private isHandlingError;
     private isConnecting;
-    private lastCloseTime;
+    private hasEverConnected;
+    private messageQueue;
     private timers;
     constructor(options: WebSocketOptions, callbacks: WebSocketCallbacks);
     private connect;
@@ -42,9 +41,11 @@ export declare class WebSocketClient {
     private handleTimeoutAndReconnect;
     private clearTimer;
     private clearAllTimers;
-    private startMessageTimeout;
+    private cleanupConnection;
+    private cleanupOldConnection;
     private isConnected;
     send(data: SocketData): boolean;
+    private flushMessageQueue;
     destroy(): void;
     getWebSocket(): WebSocket | null;
 }
