@@ -31,7 +31,6 @@ export class WebSocketClient {
     private callbacks: WebSocketCallbacks;
     private reconnectCount: number = 0;
     private isConnecting: boolean = false; 
-    private hasEverConnected: boolean = false; // 标记是否曾经连接成功过 
     private messageQueue: SocketData[] = []; // 消息缓冲队列
     private timers = {
         heartbeatSend: null as any,
@@ -96,10 +95,8 @@ export class WebSocketClient {
         this.ws.onopen = () => {
             this.isConnecting = false;
             
-            if (!this.hasEverConnected) {
-                this.reconnectCount = 0;
-                this.hasEverConnected = true;
-            }
+            // 成功建立连接后重置重连计数，确保后续断开可以重新开始计数
+            this.reconnectCount = 0;
             
             // 如果启用了消息缓冲，发送缓冲队列中的消息
             if (this.options.enableMessageBuffer) {

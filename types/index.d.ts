@@ -28,7 +28,6 @@ export declare class WebSocketClient {
     private callbacks;
     private reconnectCount;
     private isConnecting;
-    private hasEverConnected;
     private messageQueue;
     private timers;
     constructor(options: WebSocketOptions, callbacks: WebSocketCallbacks);
