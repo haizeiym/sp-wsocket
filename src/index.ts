@@ -30,7 +30,6 @@ export class WebSocketClient {
   private callbacks: WebSocketCallbacks;
   private reconnectCount = 0;
   private isConnecting = false;
-  private isReconnecting = false;
 
   private timers: Record<string, ReturnType<typeof setTimeout> | ReturnType<typeof setInterval> | null> = {
     heartbeatSend: null,
@@ -63,7 +62,10 @@ export class WebSocketClient {
     this.clearAllTimers();
 
     if (this.ws) {
-      this.cleanupOldConnection(this.ws);
+      this.ws.onopen = this.ws.onmessage = this.ws.onclose = this.ws.onerror = null;
+      if (this.ws.readyState !== WebSocket.CLOSED && this.ws.readyState !== WebSocket.CLOSING) {
+        this.ws.close();
+      }
       this.ws = null;
     }
 
@@ -74,7 +76,6 @@ export class WebSocketClient {
     } catch (err) {
       console.error("WebSocket 初始化失败:", err);
       this.isConnecting = false;
-      // 不直接调用 connect()，重连由 onclose 控制
     }
   }
 
@@ -83,8 +84,8 @@ export class WebSocketClient {
 
     this.ws.onopen = () => {
       this.isConnecting = false;
-      this.isReconnecting = false;
       this.reconnectCount = 0;
+      this.clearTimer("reconnect");
       this.startHeartbeat();
       this.resetHeartbeat();
       this.callbacks.onConnected?.(null);
@@ -100,22 +101,11 @@ export class WebSocketClient {
       this.clearAllTimers();
       this.callbacks.onClosed?.(null);
 
-      // 统一由 onclose 触发重连
-      if (!this.isReconnecting && this.reconnectCount < this.options.reconnectAttempts!) {
-        this.isReconnecting = true;
+      if (this.reconnectCount < this.options.reconnectAttempts!) {
         this.reconnectCount++;
         this.callbacks.onReconnecting?.(this.options.reconnectAttempts! - this.reconnectCount);
-
-        const baseDelay = this.options.reconnectInterval!;
-        const backoffDelay = Math.min(baseDelay * Math.pow(1.5, this.reconnectCount - 1), 30000);
-        const randomDelay = Math.random() * this.options.randomTime! * 1000;
-        const totalDelay = backoffDelay + randomDelay;
-
-        this.timers.reconnect = setTimeout(() => {
-          this.isReconnecting = false;
-          this.connect();
-        }, totalDelay);
-      } else if (this.reconnectCount >= this.options.reconnectAttempts!) {
+        this.timers.reconnect = setTimeout(() => this.connect(), this.getReconnectDelay());
+      } else {
         this.callbacks.onReconnectFailed?.(null);
         this.ws = null;
         setTimeout(() => (this.reconnectCount = 0), 30000);
@@ -124,8 +114,11 @@ export class WebSocketClient {
 
     this.ws.onerror = (error) => {
       this.callbacks.onError?.(error);
-      // 不触发 connect()，由 onclose 控制
     };
+  }
+
+  private getRandomDelay(): number {
+    return Math.random() * this.options.randomTime! * 1000;
   }
 
   private startHeartbeat(): void {
@@ -133,7 +126,7 @@ export class WebSocketClient {
     this.clearTimer("heartbeatSend");
     this.timers.heartbeatSend = setInterval(() => {
       if (this.isConnected()) this.ws!.send(this.callbacks.getHeartbeat!());
-    }, this.options.heartbeatInterval! + Math.random() * this.options.randomTime!);
+    }, this.options.heartbeatInterval! + this.getRandomDelay());
   }
 
   private resetHeartbeat(): void {
@@ -142,8 +135,13 @@ export class WebSocketClient {
     this.timers.heartbeatCheck = setTimeout(() => {
       this.callbacks.onHeartbeatTimeout?.(null);
       this.cleanupConnection();
-      // 重连由 onclose 控制
-    }, this.options.heartbeatTimeout! + Math.random() * this.options.randomTime!);
+    }, this.options.heartbeatTimeout! + this.getRandomDelay());
+  }
+
+  private getReconnectDelay(): number {
+    const baseDelay = this.options.reconnectInterval!;
+    const backoffDelay = Math.min(baseDelay * Math.pow(1.5, this.reconnectCount - 1), 30000);
+    return backoffDelay + this.getRandomDelay();
   }
 
   private clearTimer(name: keyof typeof this.timers): void {
@@ -160,12 +158,12 @@ export class WebSocketClient {
 
   private cleanupConnection(): void {
     this.clearAllTimers();
-    if (this.ws) this.cleanupOldConnection(this.ws);
-  }
-
-  private cleanupOldConnection(ws: WebSocket): void {
-    ws.onopen = ws.onmessage = ws.onclose = ws.onerror = null;
-    if (ws.readyState !== WebSocket.CLOSED && ws.readyState !== WebSocket.CLOSING) ws.close();
+    if (this.ws) {
+      this.ws.onopen = this.ws.onmessage = this.ws.onclose = this.ws.onerror = null;
+      if (this.ws.readyState !== WebSocket.CLOSED && this.ws.readyState !== WebSocket.CLOSING) {
+        this.ws.close();
+      }
+    }
   }
 
   private isConnected(): boolean {
@@ -183,7 +181,8 @@ export class WebSocketClient {
 
   public destroy(): void {
     this.isConnecting = false;
-    this.isReconnecting = false;
+    this.reconnectCount = 0;
+    this.clearTimer("reconnect");
     this.cleanupConnection();
     this.callbacks.onClosed?.(null);
     this.ws = null;
