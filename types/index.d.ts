@@ -20,7 +20,6 @@ interface WebSocketOptions {
     heartbeatTimeout?: number;
     randomTime?: number;
     binaryType?: BinaryType;
-    enableMessageBuffer?: boolean;
 }
 export declare class WebSocketClient {
     private ws;
@@ -28,23 +27,19 @@ export declare class WebSocketClient {
     private callbacks;
     private reconnectCount;
     private isConnecting;
-    private messageQueue;
     private timers;
     constructor(options: WebSocketOptions, callbacks: WebSocketCallbacks);
     private connect;
     private setupEventListeners;
-    private handleConnectionError;
+    private getRandomDelay;
     private startHeartbeat;
     private resetHeartbeat;
-    private sendHeartbeat;
-    private handleTimeoutAndReconnect;
+    private getReconnectDelay;
     private clearTimer;
     private clearAllTimers;
     private cleanupConnection;
-    private cleanupOldConnection;
     private isConnected;
     send(data: SocketData): boolean;
-    private flushMessageQueue;
     destroy(): void;
     getWebSocket(): WebSocket | null;
 }
