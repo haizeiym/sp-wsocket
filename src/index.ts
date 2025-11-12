@@ -30,6 +30,7 @@ export class WebSocketClient {
   private callbacks: WebSocketCallbacks;
   private reconnectCount = 0;
   private isConnecting = false;
+  private shouldReconnect = true;
 
   private timers: Record<string, ReturnType<typeof setTimeout> | ReturnType<typeof setInterval> | null> = {
     heartbeatSend: null,
@@ -57,12 +58,12 @@ export class WebSocketClient {
   }
 
   private connect(): void {
-    if (this.isConnecting) return;
+    if (this.isConnecting || !this.shouldReconnect) return;
     this.isConnecting = true;
     this.clearAllTimers();
 
     if (this.ws) {
-      this.ws.onopen = this.ws.onmessage = this.ws.onclose = this.ws.onerror = null;
+      this.removeSocketHandlers(this.ws);
       if (this.ws.readyState !== WebSocket.CLOSED && this.ws.readyState !== WebSocket.CLOSING) {
         this.ws.close();
       }
@@ -84,6 +85,7 @@ export class WebSocketClient {
 
     this.ws.onopen = () => {
       this.isConnecting = false;
+      this.shouldReconnect = true;
       this.reconnectCount = 0;
       this.clearTimer("reconnect");
       this.startHeartbeat();
@@ -97,24 +99,45 @@ export class WebSocketClient {
     };
 
     this.ws.onclose = () => {
-      this.isConnecting = false;
-      this.clearAllTimers();
-      this.callbacks.onClosed?.(null);
-
-      if (this.reconnectCount < this.options.reconnectAttempts!) {
-        this.reconnectCount++;
-        this.callbacks.onReconnecting?.(this.options.reconnectAttempts! - this.reconnectCount);
-        this.timers.reconnect = setTimeout(() => this.connect(), this.getReconnectDelay());
-      } else {
-        this.callbacks.onReconnectFailed?.(null);
-        this.ws = null;
-        setTimeout(() => (this.reconnectCount = 0), 30000);
+      const socket = this.ws;
+      if (socket) {
+        this.removeSocketHandlers(socket);
       }
+      this.ws = null;
+      const allowReconnect = this.shouldReconnect;
+      this.handleSocketClosed(allowReconnect);
     };
 
     this.ws.onerror = (error) => {
       this.callbacks.onError?.(error);
     };
+  }
+
+  private removeSocketHandlers(ws: WebSocket): void {
+    ws.onopen = ws.onmessage = ws.onclose = ws.onerror = null;
+  }
+
+  private handleSocketClosed(shouldReconnect: boolean): void {
+    this.isConnecting = false;
+    this.ws = null;
+    this.clearAllTimers();
+    this.callbacks.onClosed?.(null);
+
+    if (!shouldReconnect) {
+      this.shouldReconnect = false;
+      this.reconnectCount = 0;
+      return;
+    }
+
+    if (this.reconnectCount < this.options.reconnectAttempts!) {
+      this.reconnectCount++;
+      this.shouldReconnect = true;
+      this.callbacks.onReconnecting?.(this.options.reconnectAttempts! - this.reconnectCount);
+      this.timers.reconnect = setTimeout(() => this.connect(), this.getReconnectDelay());
+    } else {
+      this.callbacks.onReconnectFailed?.(null);
+      this.shouldReconnect = false;
+    }
   }
 
   private getRandomDelay(): number {
@@ -134,7 +157,7 @@ export class WebSocketClient {
     this.clearTimer("heartbeatCheck");
     this.timers.heartbeatCheck = setTimeout(() => {
       this.callbacks.onHeartbeatTimeout?.(null);
-      this.cleanupConnection();
+      this.terminateConnection(false);
     }, this.options.heartbeatTimeout! + this.getRandomDelay());
   }
 
@@ -156,14 +179,27 @@ export class WebSocketClient {
     Object.keys(this.timers).forEach((k) => this.clearTimer(k as keyof typeof this.timers));
   }
 
-  private cleanupConnection(): void {
-    this.clearAllTimers();
-    if (this.ws) {
-      this.ws.onopen = this.ws.onmessage = this.ws.onclose = this.ws.onerror = null;
-      if (this.ws.readyState !== WebSocket.CLOSED && this.ws.readyState !== WebSocket.CLOSING) {
-        this.ws.close();
+  private terminateConnection(shouldReconnect: boolean): void {
+    const socket = this.ws;
+    if (!socket) {
+      if (!shouldReconnect) {
+        this.shouldReconnect = false;
+        this.reconnectCount = 0;
+      }
+      this.clearAllTimers();
+      return;
+    }
+
+    this.removeSocketHandlers(socket);
+    if (socket.readyState !== WebSocket.CLOSED && socket.readyState !== WebSocket.CLOSING) {
+      try {
+        socket.close();
+      } catch (err) {
+        // ignore
       }
     }
+    this.ws = null;
+    this.handleSocketClosed(shouldReconnect);
   }
 
   private isConnected(): boolean {
@@ -180,12 +216,10 @@ export class WebSocketClient {
   }
 
   public destroy(): void {
+    this.shouldReconnect = false;
     this.isConnecting = false;
-    this.reconnectCount = 0;
     this.clearTimer("reconnect");
-    this.cleanupConnection();
-    this.callbacks.onClosed?.(null);
-    this.ws = null;
+    this.terminateConnection(false);
     this.callbacks = {} as WebSocketCallbacks;
   }
 
